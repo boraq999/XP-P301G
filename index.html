@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مشروع الطباعة الصامتة - App1</title>
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@300;500;700&display=swap');
+
+        body {
+            font-family: 'Tajawal', sans-serif;
+            background-color: #f8fafc;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 40px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .status-badge {
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+            margin-top: 10px;
+            display: inline-block;
+        }
+
+        .online {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .offline {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        #invoice-container {
+            background: white;
+            padding: 2.5rem;
+            border-radius: 1rem;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+            width: 350px;
+        }
+
+        /* تنسيق الفاتورة الحراري */
+        #invoice-to-print {
+            width: 272px;
+            /* 80mm approx */
+            margin: 0 auto;
+            background: #fff;
+            color: #000;
+        }
+
+        .inv-header {
+            text-align: center;
+            margin-bottom: 15px;
+        }
+
+        .inv-title {
+            background: #000;
+            color: #fff;
+            padding: 5px;
+            display: inline-block;
+        }
+
+        .inv-line {
+            border-top: 1px dotted #000;
+            margin: 10px 0;
+        }
+
+        .inv-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+            margin: 3px 0;
+        }
+
+        .inv-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        .inv-table th {
+            border-bottom: 1px solid #000;
+            font-size: 12px;
+            padding-bottom: 5px;
+        }
+
+        .inv-table td {
+            font-size: 14px;
+            padding: 5px 0;
+        }
+
+        .btn-print {
+            margin-top: 30px;
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        .btn-print:hover {
+            background: #1d4ed8;
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="header">
+        <h1>نظام الطباعة الصامتة (App1)</h1>
+        <div id="status" class="status-badge offline">⏳ جاري التحقق من السيرفر...</div>
+    </div>
+
+    <div id="invoice-container">
+        <div id="invoice-to-print">
+            <div class="inv-header">
+                <h3>شركة المتفوقون الأوائل</h3>
+                <div class="inv-title">فاتورة مبيعات</div>
+                <p style="font-size:12px">INV-2026/0042<br>2026-02-27</p>
+            </div>
+
+            <div class="inv-line"></div>
+
+            <table class="inv-table">
+                <thead>
+                    <tr>
+                        <th style="text-align:right">المنتج</th>
+                        <th>كمية</th>
+                        <th style="text-align:left">إجمالي</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td style="text-align:right">منتج تجريبي 1</td>
+                        <td style="text-align:center">1</td>
+                        <td style="text-align:left">10.00</td>
+                    </tr>
+                    <tr>
+                        <td style="text-align:right">منتج تجريبي 2</td>
+                        <td style="text-align:center">3</td>
+                        <td style="text-align:left">50.00</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="inv-line"></div>
+
+            <div class="inv-row">
+                <span>المجموع النهائي:</span>
+                <span style="font-weight:bold; font-size:16px;">60.00 د.ل</span>
+            </div>
+
+            <div class="inv-header" style="margin-top:20px;">
+                <p style="font-size:11px;">شكراً لزيارتكم<br>تاج مول - طرابلس</p>
+            </div>
+        </div>
+    </div>
+
+    <button class="btn-print" onclick="printSilently()">🖨️ طباعة صامتة فورية</button>
+
+    <script>
+        const SERVER_URL = 'http://localhost:3333';
+
+        // تحقق من حالة السيرفر
+        async function checkServer() {
+            try {
+                const res = await fetch(SERVER_URL + '/');
+                if (res.ok) {
+                    document.getElementById('status').innerText = '✅ سيرفر الطباعة جاهز';
+                    document.getElementById('status').className = 'status-badge online';
+                }
+            } catch (e) {
+                document.getElementById('status').innerText = '❌ سيرفر الطباعة مطفأ';
+                document.getElementById('status').className = 'status-badge offline';
+            }
+        }
+
+        async function printSilently() {
+            const btn = document.querySelector('.btn-print');
+            const originalText = btn.innerText;
+            btn.innerText = '⏳ جاري المعالجة...';
+            btn.disabled = true;
+
+            try {
+                const canvas = await html2canvas(document.getElementById('invoice-to-print'), {
+                    scale: 2,
+                    backgroundColor: '#ffffff'
+                });
+
+                const base64Image = canvas.toDataURL('image/png').split(',')[1];
+
+                const response = await fetch(SERVER_URL + '/print', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: base64Image })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    alert('✅ تمت عملية الطباعة بنجاح!');
+                } else {
+                    alert('❌ خطأ: ' + result.error);
+                }
+            } catch (error) {
+                alert('❌ فشل الاتصال بالسيرفر. تأكد من تشغيل local_server.js');
+            } finally {
+                btn.innerText = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        setInterval(checkServer, 3000);
+        checkServer();
+    </script>
+</body>
+
+</html>
