@@ -115,6 +115,29 @@
             background: #1d4ed8;
             transform: translateY(-2px);
         }
+
+        .btn-bluetooth {
+            margin-top: 15px;
+            background: #0ea5e9;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        .btn-bluetooth:hover {
+            background: #0284c7;
+            transform: translateY(-2px);
+        }
+
+        .btn-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
     </style>
 </head>
 
@@ -170,7 +193,10 @@
         </div>
     </div>
 
-    <button class="btn-print" onclick="printSilently()">🖨️ طباعة صامتة فورية</button>
+    <div class="btn-container">
+        <button class="btn-print" onclick="printSilently()">🖨️ طباعة صامتة فورية</button>
+        <button class="btn-bluetooth" onclick="printViaBluetooth()">📱 طباعة عبر بلوتوث</button>
+    </div>
 
     <script>
         const SERVER_URL = 'http://localhost:3333';
@@ -225,6 +251,81 @@
 
         setInterval(checkServer, 3000);
         checkServer();
+
+        // طباعة بلوتوث
+        let bluetoothDevice = null;
+        let bluetoothCharacteristic = null;
+
+        async function printViaBluetooth() {
+            const btn = document.querySelectorAll('.btn-bluetooth')[0];
+            const originalText = btn.innerText;
+            btn.innerText = '⏳ جاري الاتصال...';
+            btn.disabled = true;
+
+            try {
+                if (!navigator.bluetooth) {
+                    alert('❌ متصفحك لا يدعم بلوتوث. استخدم Chrome أو Edge');
+                    return;
+                }
+
+                // الاتصال بالطابعة
+                if (!bluetoothDevice) {
+                    bluetoothDevice = await navigator.bluetooth.requestDevice({
+                        filters: [{ services: ['000018f0-0000-1000-8000-00805f9b34fb'] }],
+                        optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb']
+                    });
+                    const server = await bluetoothDevice.gatt.connect();
+                    const service = await server.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
+                    bluetoothCharacteristic = await service.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb');
+                }
+
+                btn.innerText = '⏳ جاري الطباعة...';
+
+                // تحويل الفاتورة لصورة
+                const canvas = await html2canvas(document.getElementById('invoice-to-print'), {
+                    scale: 2,
+                    backgroundColor: '#ffffff'
+                });
+
+                // تحويل لأوامر ESC/POS بسيطة
+                const ESC = 0x1B;
+                const GS = 0x1D;
+                const commands = new Uint8Array([
+                    ESC, 0x40, // تهيئة
+                    ESC, 0x61, 0x01, // محاذاة وسط
+                    ...textToBytes('شركة المتفوقون الأوائل\n'),
+                    ...textToBytes('فاتورة مبيعات\n'),
+                    ...textToBytes('INV-2026/0042\n'),
+                    ...textToBytes('2026-02-27\n\n'),
+                    ...textToBytes('--------------------------------\n'),
+                    ESC, 0x61, 0x00, // محاذاة يسار
+                    ...textToBytes('منتج تجريبي 1    1    10.00\n'),
+                    ...textToBytes('منتج تجريبي 2    3    50.00\n'),
+                    ...textToBytes('--------------------------------\n'),
+                    ...textToBytes('المجموع: 60.00 د.ل\n\n'),
+                    ESC, 0x61, 0x01,
+                    ...textToBytes('شكراً لزيارتكم\n'),
+                    ...textToBytes('تاج مول - طرابلس\n\n\n'),
+                    GS, 0x56, 0x00 // قص الورق
+                ]);
+
+                // إرسال للطابعة
+                await bluetoothCharacteristic.writeValue(commands);
+                alert('✅ تمت الطباعة عبر بلوتوث!');
+
+            } catch (error) {
+                console.error(error);
+                alert('❌ فشل الاتصال: ' + error.message);
+                bluetoothDevice = null;
+            } finally {
+                btn.innerText = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        function textToBytes(text) {
+            return new TextEncoder().encode(text);
+        }
     </script>
 </body>
 
