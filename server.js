@@ -28,7 +28,7 @@ function renderInvoiceToImage(data) {
     const ITEM_LINE_HEIGHT = 65; // زيادة ارتفاع السطر للمنتجات لتجنب التداخل
 
     const itemsHeight = (data.items || []).length * ITEM_LINE_HEIGHT;
-    const totalHeight = 650 + itemsHeight + 200; // زيادة الارتفاع الكلي للملف
+    const totalHeight = 680 + itemsHeight; // تقليل الفراغ السفلي بناءً على طلب المستخدم
 
     const canvas = createCanvas(PRINTER_WIDTH_PX, totalHeight);
     const ctx = canvas.getContext('2d');
