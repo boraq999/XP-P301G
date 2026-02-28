@@ -133,6 +133,23 @@
             transform: translateY(-2px);
         }
 
+        .btn-text {
+            margin-top: 5px;
+            background: #10b981;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        .btn-text:hover {
+            background: #059669;
+            transform: translateY(-2px);
+        }
+
         .btn-container {
             display: flex;
             flex-direction: column;
@@ -194,7 +211,8 @@
     </div>
 
     <div class="btn-container">
-        <button class="btn-print" onclick="printSilently()">🖨️ طباعة صامتة فورية</button>
+        <button class="btn-print" onclick="printSilently()">🖨️ طباعة صامتة (صورة)</button>
+        <button class="btn-text" onclick="printAsText()">🔤 طباعة نصية (سريعة)</button>
         <button class="btn-bluetooth" onclick="printViaBluetooth()">📱 طباعة عبر بلوتوث</button>
     </div>
 
@@ -243,6 +261,57 @@
                 }
             } catch (error) {
                 alert('❌ فشل الاتصال بالسيرفر. تأكد من تشغيل local_server.js');
+            } finally {
+                btn.innerText = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        async function printAsText() {
+            const btn = document.querySelector('.btn-text');
+            const originalText = btn.innerText;
+            btn.innerText = '⏳ جاري الإرسال...';
+            btn.disabled = true;
+
+            // تجميع بيانات الفاتورة من الـ DOM مباشرة
+            const invoiceData = {
+                company: document.querySelector('.inv-header h3')?.innerText || 'شركة',
+                title: document.querySelector('.inv-title')?.innerText || 'فاتورة',
+                invoiceNo: document.querySelector('.inv-header p')?.innerHTML?.split('<br>')[0] || '',
+                date: document.querySelector('.inv-header p')?.innerHTML?.split('<br>')[1] || '',
+                items: [],
+                grandTotal: document.querySelector('.inv-row span:last-child')?.innerText || '',
+                footer1: document.querySelector('.inv-header:last-of-type p')?.innerHTML?.split('<br>')[0] || '',
+                footer2: document.querySelector('.inv-header:last-of-type p')?.innerHTML?.split('<br>')[1] || ''
+            };
+
+            // استخراج عناصر الجدول
+            document.querySelectorAll('.inv-table tbody tr').forEach(row => {
+                const cells = row.querySelectorAll('td');
+                if (cells.length >= 3) {
+                    invoiceData.items.push({
+                        name: cells[0].innerText,
+                        qty: cells[1].innerText,
+                        total: cells[2].innerText
+                    });
+                }
+            });
+
+            try {
+                const response = await fetch(SERVER_URL + '/print', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ invoice: invoiceData })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    alert('✅ تمت الطباعة النصية بنجاح!');
+                } else {
+                    alert('❌ خطأ: ' + result.error);
+                }
+            } catch (error) {
+                alert('❌ فشل الاتصال بالسيرفر.');
             } finally {
                 btn.innerText = originalText;
                 btn.disabled = false;

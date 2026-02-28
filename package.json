@@ -4,10 +4,10 @@
     "description": "Silent thermal printing project",
     "main": "server.js",
     "dependencies": {
+        "canvas": "^3.2.1",
         "escpos": "^3.0.0-alpha.6",
         "escpos-usb": "^3.0.0-alpha.4",
-        "mutable-buffer": "^2.2.5",
-        "iconv-lite": "^0.7.2",
-        "get-pixels": "^3.3.3"
+        "get-pixels": "^3.3.3",
+        "mutable-buffer": "^2.2.5"
     }
 }
