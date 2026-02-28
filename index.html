@@ -326,9 +326,9 @@
         let bluetoothCharacteristic = null;
 
         async function printViaBluetooth() {
-            const btn = document.querySelectorAll('.btn-bluetooth')[0];
+            const btn = document.querySelector('.btn-bluetooth');
             const originalText = btn.innerText;
-            btn.innerText = '⏳ جاري الاتصال...';
+            btn.innerText = '⏳ جاري المعالجة...';
             btn.disabled = true;
 
             try {
@@ -337,8 +337,19 @@
                     return;
                 }
 
-                // الاتصال بالطابعة
-                if (!bluetoothDevice) {
+                // 1. التقاط الفاتورة كـ Canvas
+                const invoiceEl = document.getElementById('invoice-to-print');
+                const canvas = await html2canvas(invoiceEl, {
+                    scale: 2,
+                    backgroundColor: '#ffffff'
+                });
+
+                // 2. تحويل الـ Canvas إلى بيانات Raster (أسود وأبيض)
+                const rasterData = canvasToRaster(canvas);
+
+                // 3. الاتصال بالطابعة إذا لم تكن متصلة
+                if (!bluetoothDevice || !bluetoothDevice.gatt.connected) {
+                    btn.innerText = '⏳ جاري الاتصال بالطابعة...';
                     bluetoothDevice = await navigator.bluetooth.requestDevice({
                         filters: [{ services: ['000018f0-0000-1000-8000-00805f9b34fb'] }],
                         optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb']
@@ -348,43 +359,16 @@
                     bluetoothCharacteristic = await service.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb');
                 }
 
-                btn.innerText = '⏳ جاري الطباعة...';
+                btn.innerText = '⏳ جاري إرسال البيانات...';
 
-                // تحويل الفاتورة لصورة
-                const canvas = await html2canvas(document.getElementById('invoice-to-print'), {
-                    scale: 2,
-                    backgroundColor: '#ffffff'
-                });
+                // 4. إرسال البيانات على دفعات (Chunks) لأن البلوتوث محدود السعة
+                await sendInChunks(bluetoothCharacteristic, rasterData);
 
-                // تحويل لأوامر ESC/POS بسيطة
-                const ESC = 0x1B;
-                const GS = 0x1D;
-                const commands = new Uint8Array([
-                    ESC, 0x40, // تهيئة
-                    ESC, 0x61, 0x01, // محاذاة وسط
-                    ...textToBytes('شركة المتفوقون الأوائل\n'),
-                    ...textToBytes('فاتورة مبيعات\n'),
-                    ...textToBytes('INV-2026/0042\n'),
-                    ...textToBytes('2026-02-27\n\n'),
-                    ...textToBytes('--------------------------------\n'),
-                    ESC, 0x61, 0x00, // محاذاة يسار
-                    ...textToBytes('منتج تجريبي 1    1    10.00\n'),
-                    ...textToBytes('منتج تجريبي 2    3    50.00\n'),
-                    ...textToBytes('--------------------------------\n'),
-                    ...textToBytes('المجموع: 60.00 د.ل\n\n'),
-                    ESC, 0x61, 0x01,
-                    ...textToBytes('شكراً لزيارتكم\n'),
-                    ...textToBytes('تاج مول - طرابلس\n\n\n'),
-                    GS, 0x56, 0x00 // قص الورق
-                ]);
-
-                // إرسال للطابعة
-                await bluetoothCharacteristic.writeValue(commands);
-                alert('✅ تمت الطباعة عبر بلوتوث!');
+                alert('✅ تمت الطباعة بنجاح!');
 
             } catch (error) {
                 console.error(error);
-                alert('❌ فشل الاتصال: ' + error.message);
+                alert('❌ خطأ: ' + error.message);
                 bluetoothDevice = null;
             } finally {
                 btn.innerText = originalText;
@@ -392,8 +376,54 @@
             }
         }
 
-        function textToBytes(text) {
-            return new TextEncoder().encode(text);
+        // تحويل Canvas إلى أوامر ESC/POS Raster
+        function canvasToRaster(canvas) {
+            const width = canvas.width;
+            const height = canvas.height;
+            const ctx = canvas.getContext('2d');
+            const imageData = ctx.getImageData(0, 0, width, height).data;
+
+            const widthBytes = Math.ceil(width / 8);
+            const raster = [];
+
+            // أوامر تهيئة الصورة (GS v 0)
+            raster.push(0x1D, 0x76, 0x30, 0x00);
+            raster.push(widthBytes & 0xFF, (widthBytes >> 8) & 0xFF); // Width
+            raster.push(height & 0xFF, (height >> 8) & 0xFF); // Height
+
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < widthBytes; x++) {
+                    let byte = 0;
+                    for (let bit = 0; bit < 8; bit++) {
+                        const idx = ((y * width) + (x * 8 + bit)) * 4;
+                        if (idx < imageData.length) {
+                            const r = imageData[idx];
+                            const g = imageData[idx + 1];
+                            const b = imageData[idx + 2];
+                            const avg = (r + g + b) / 3;
+                            if (avg < 128) { // إذا كان اللون غامقاً نعتبره أسود
+                                byte |= (0x80 >> bit);
+                            }
+                        }
+                    }
+                    raster.push(byte);
+                }
+            }
+
+            // أوامر نهائية (قص الورق)
+            raster.push(0x1D, 0x56, 0x00);
+            return new Uint8Array(raster);
+        }
+
+        // إرسال البيانات على دفعات صغيرة لتجنب توقف البلوتوث
+        async function sendInChunks(characteristic, data) {
+            const CHUNK_SIZE = 100; // حجم الدفعة بالبايت
+            for (let i = 0; i < data.length; i += CHUNK_SIZE) {
+                const chunk = data.slice(i, i + CHUNK_SIZE);
+                await characteristic.writeValue(chunk);
+                // تأخير بسيط جداً لضمان استقرار الإرسال
+                await new Promise(r => setTimeout(r, 10));
+            }
         }
     </script>
 </body>

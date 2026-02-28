@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>دليل حلول طباعة اللغة العربية (ESC/POS)</title>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #2563eb;
+            --bg: #f8fafc;
+            --card: #ffffff;
+            --text: #1e293b;
+        }
+        body {
+            font-family: 'Tajawal', sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            line-height: 1.8;
+            padding: 40px 20px;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 50px;
+            background: linear-gradient(135deg, #1e3a8a, #2563eb);
+            color: white;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(37, 99, 235, 0.2);
+        }
+        .card {
+            background: var(--card);
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+        }
+        h2 {
+            color: var(--primary);
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 10px;
+            margin-top: 0;
+        }
+        pre {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 20px;
+            border-radius: 10px;
+            overflow-x: auto;
+            direction: ltr;
+            text-align: left;
+            font-family: 'Consolas', monospace;
+        }
+        code {
+            font-family: 'Consolas', monospace;
+            background: #e2e8f0;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+        pre code {
+            background: transparent;
+            padding: 0;
+        }
+        .tag {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8em;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+        .tag-js { background: #fef08a; color: #854d0e; }
+        .tag-php { background: #e0e7ff; color: #3730a3; }
+        .tag-py { background: #dcfce7; color: #166534; }
+        .solution-golden {
+            border: 2px solid #fbbf24;
+            background: #fffbeb;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>دليل حلول طباعة اللغة العربية على الطابعات الحرارية</h1>
+        <p>Technical Guide for Arabic Thermal Printing Solution</p>
+    </div>
+
+    <div class="card">
+        <h2>1. المشكلة (The Problem)</h2>
+        <p>عند التعامل مع طابعات ESC/POS، يواجه المطورون ثلاثة عوائق رئيسية عند محاولة طباعة اللغة العربية:</p>
+        <ul>
+            <li><strong>الترميز (Encoding):</strong> عدم دعم UTF-8 وظهور حروف صينية.</li>
+            <li><strong>التشكيل (Reshaping):</strong> الحروف العربية تغير شكلها بناءً على موقعها (أول، وسط، آخر الكلمة)، وهو ما لا تفهمه الطابعة.</li>
+            <li><strong>الاتجاه (RTL):</strong> النص العربي يقرأ من اليمين لليسار.</li>
+        </ul>
+    </div>
+
+    <div class="card solution-golden">
+        <h2>2. الحل الذهبي: الرسم عبر السيرفر</h2>
+        <p>بدلاً من إرسال "نص" للطابعة ومواجهة مشاكل "عقل" الطابعة المحدود، نقوم برسم الفاتورة كـ صورة في السيرفر.</p>
+        <p><strong>لماذا هذا الحل؟</strong> لأنه يضمن ظهور الخط العربي بجماله الكامل، ويدعم الجداول، والرموز، والشعارات دون أي تعقيد في إعدادات الطابعة.</p>
+    </div>
+
+    <div class="card">
+        <span class="tag tag-js">JavaScript (Node.js)</span>
+        <h2>التنفيذ عبر Node.js (مكتبة Canvas)</h2>
+        <pre><code>const { createCanvas } = require('canvas');
+
+function renderArabic(text) {
+    const canvas = createCanvas(576, 100);
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = 'white';
+    ctx.fillRect(0, 0, 576, 100);
+    
+    ctx.fillStyle = 'black';
+    ctx.font = '32px "Segoe UI", Arial';
+    ctx.textAlign = 'right';
+    ctx.direction = 'rtl';
+    ctx.fillText(text, 560, 50);
+    
+    return canvas.toBuffer();
+}</code></pre>
+    </div>
+
+    <div class="card">
+        <span class="tag tag-php">PHP</span>
+        <h2>التنفيذ عبر PHP (مكتبة GD)</h2>
+        <pre><code>// تحويل النص العربي أولاً باستخدام Ar-PHP
+$arabic = new \I18N_Arabic('Glyphs');
+$text = $arabic->utf8Glyphs("مرحبا بالعربي");
+
+$im = imagecreatetruecolor(576, 100);
+$white = imagecolorallocate($im, 255, 255, 255);
+imagefilledrectangle($im, 0, 0, 576, 100, $white);
+
+$black = imagecolorallocate($im, 0, 0, 0);
+imagettftext($im, 24, 0, 400, 50, $black, 'arial.ttf', $text);
+imagepng($im, "print.png");</code></pre>
+    </div>
+
+    <div class="card">
+        <span class="tag tag-py">Python</span>
+        <h2>التنفيذ عبر Python (مكتبة Pillow)</h2>
+        <pre><code>from PIL import Image, ImageDraw, ImageFont
+import arabic_reshaper
+from bidi.algorithm import get_display
+
+def create_image(text):
+    # تشكيل النص ومعالجته RTL
+    reshaped_text = arabic_reshaper.reshape(text)
+    bidi_text = get_display(reshaped_text)
+    
+    img = Image.new('RGB', (576, 100), color=(255, 255, 255))
+    d = ImageDraw.Draw(img)
+    font = ImageFont.truetype("arial.ttf", 32)
+    d.text((10,10), bidi_text, fill=(0,0,0), font=font)
+    img.save('print.png')</code></pre>
+    </div>
+
+    <footer style="text-align: center; color: #64748b; font-size: 0.9em;">
+        تم إعداد هذا التوثيق لمشروع XP-P301G - 2026
+    </footer>
+</body>
+</html>
